@@ -143,7 +143,6 @@ def dashboard():
     </body>
     </html>
     """
-    
 
 @app.route('/api/report-stolen', methods=['POST'])
 def report_stolen():
@@ -250,6 +249,33 @@ def locate_device(device_hash):
         'lat': probable_lat,
         'lon': probable_lon
     })
+
+# ADD THE MISSING ROUTE HERE - before if __name__ == "__main__":
+@app.route('/api/heatmap/all-active', methods=['GET'])
+def all_active_heatmap():
+    conn = get_db()
+    c = conn.cursor()
+    since = datetime.now() - timedelta(hours=6)
+    
+    c.execute("""
+        SELECT r.relay_lat, r.relay_lon, r.signal_strength, r.timestamp, s.device_hash
+        FROM relay_reports r
+        JOIN stolen_devices s ON r.device_hash = s.device_hash
+        WHERE r.timestamp > ? AND s.status = 'active'
+        ORDER BY r.timestamp DESC
+    """, (since,))
+    
+    points = []
+    for row in c.fetchall():
+        points.append({
+            'lat': row['relay_lat'],
+            'lon': row['relay_lon'],
+            'device': row['device_hash'][:8] + '...',
+            'signal': row['signal_strength'],
+            'time': row['timestamp']
+        })
+    conn.close()
+    return jsonify({'active_sightings': len(points), 'points': points})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

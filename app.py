@@ -60,9 +60,90 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-@app.route("/")
-def home():
-    return "Server is running!"
+@app.route('/')
+def dashboard():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Stolen Phone Tracker - Kenya</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <style>
+            body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+            #map { height: 500px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+            h1 { color: #d32f2f; }
+            .stat { display: inline-block; margin-right: 30px; }
+            .stat-value { font-size: 2em; font-weight: bold; color: #1976d2; }
+            button { background: #1976d2; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+            input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="card">
+                <h1>📱 Kenya Stolen Phone Tracker</h1>
+                <p>Mesh network device recovery system</p>
+                <div class="stat">
+                    <div class="stat-value" id="sightings-24h">-</div>
+                    <div class="stat-label">Recent Sightings</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>🔍 Track Device</h3>
+                <input type="text" id="device-hash" placeholder="Device hash..." style="width: 300px;">
+                <button onclick="trackDevice()">Locate</button>
+                <div id="track-result" style="margin-top: 15px;"></div>
+            </div>
+            <div class="card">
+                <h3>🗺️ Live Heatmap</h3>
+                <div id="map"></div>
+            </div>
+        </div>
+        <script>
+            var map = L.map('map').setView([-1.2921, 36.8219], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            var markers = [];
+            function updateStats() {
+                fetch('/api/heatmap/all-active')
+                    .then(r => r.json())
+                    .then(data => {
+                        document.getElementById('sightings-24h').textContent = data.active_sightings;
+                        markers.forEach(m => map.removeLayer(m));
+                        markers = [];
+                        data.points.forEach(p => {
+                            var color = p.signal > -60 ? '#d32f2f' : p.signal > -75 ? '#f57c00' : '#388e3c';
+                            var circle = L.circleMarker([p.lat, p.lon], {
+                                radius: 8, fillColor: color, color: '#fff', weight: 1, fillOpacity: 0.7
+                            }).addTo(map);
+                            circle.bindPopup('Device: ' + p.device + '<br>Signal: ' + p.signal + 'dBm');
+                            markers.push(circle);
+                        });
+                    });
+            }
+            function trackDevice() {
+                var hash = document.getElementById('device-hash').value;
+                fetch('/api/locate/' + hash)
+                    .then(r => r.json())
+                    .then(data => {
+                        var html = '<strong>Status:</strong> ' + data.status + '<br>';
+                        if (data.lat) {
+                            html += '<strong>Location:</strong> ' + data.lat + ', ' + data.lon + '<br>';
+                            map.setView([data.lat, data.lon], 15);
+                            L.marker([data.lat, data.lon]).addTo(map);
+                        }
+                        document.getElementById('track-result').innerHTML = html;
+                    });
+            }
+            updateStats();
+            setInterval(updateStats, 10000);
+        </script>
+    </body>
+    </html>
+    """
+    
 
 @app.route('/api/report-stolen', methods=['POST'])
 def report_stolen():

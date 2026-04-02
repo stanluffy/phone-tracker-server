@@ -2,6 +2,7 @@
 
 from flask import Flask, render_template, request, redirect, url_for
 import json
+import os
 
 app = Flask(__name__)
 
@@ -13,7 +14,7 @@ def home():
 
 @app.route('/report', methods=['POST'])
 def report_stolen_device():
-    device_info = request.form['device_info']
+    device_info = request.form.get('device_info', '')
     # Logic to report stolen devices
     return redirect(url_for('home'))
 
@@ -33,4 +34,5 @@ def health_check():
     return json.dumps({'status': 'healthy'})
 
 if __name__ == '__main__':
-    app.run(debug=True)  # Run the app
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
